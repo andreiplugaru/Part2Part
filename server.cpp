@@ -6,7 +6,6 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
-#include <signal.h>
 #include <pthread.h>
 #include <string>
 #include <vector>
@@ -22,7 +21,16 @@ typedef struct thData{
     int idThread; //id-ul thread-ului tinut in evidenta de acest program
     int cl; //descriptorul intors de accept
 }thData;
+typedef struct file{
+    string name;
+    string type;
 
+};
+typedef struct node{
+    in_addr addr;
+    in_port_t port;
+
+};
 static void *treat(void *); /* functia executata de fiecare thread ce realizeaza comunicarea cu clientii */
 static void *interfata(void *); /* functia pentru interfata */
 void raspunde(void *);
@@ -140,27 +148,37 @@ static void *treat(void * arg)
     return(NULL);
 
 };
+void sendMessage()
+{
 
+}
 
 void raspunde(void *arg)
 {
     int nr, i=0;
-    char buf[10];
+    char* utilizatorCurent;
     struct thData tdL;
     tdL= *((struct thData*)arg);
-    if (read (tdL.cl, buf,10 * sizeof(char)) <= 0)
+
+    if (read (tdL.cl, &nr,sizeof(int)) <= 0)
     {
         printf("[Thread %d]\n",tdL.idThread);
         perror ("Eroare la read() de la client.\n");
 
     }
-    connectedUsers.push_back(buf);
-    printf ("[Thread %d]Mesajul a fost receptionat...%s\n",tdL.idThread, buf);
+    utilizatorCurent = (char*)malloc(nr * sizeof(char));
+    if (read (tdL.cl, utilizatorCurent,nr * sizeof(char)) <= 0)
+    {
+        printf("[Thread %d]\n",tdL.idThread);
+        perror ("Eroare la read() de la client.\n");
+
+    }
+    utilizatorCurent[strlen(utilizatorCurent) - 1] = '\0';
+    connectedUsers.push_back(utilizatorCurent);
+    printf ("[Thread %d]Mesajul a fost receptionat...%s\n",tdL.idThread, utilizatorCurent);
 
     /*pregatim mesajul de raspuns */
-    nr++;
-    printf("[Thread %d]Trimitem mesajul inapoi...\n",tdL.idThread);
-
+   // nr++;
 
     /* returnam mesajul clientului */
     char mesaj[] = "Conexiuna cu succes!";
@@ -169,7 +187,4 @@ void raspunde(void *arg)
         printf("[Thread %d] ",tdL.idThread);
         perror ("[Thread]Eroare la write() catre client.\n");
     }
-    else
-        printf ("[Thread %d]Mesajul a fost trasmis cu succes.\n",tdL.idThread);
-
-}
+   }
