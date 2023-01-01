@@ -23,22 +23,22 @@ Result makeRequest(in_addr_t ip, in_port_t port, RequestType request, int& sd)
     server.sin_addr.s_addr = ip;
     server.sin_port = port;
     if (connect(sd, (struct sockaddr *) &server, sizeof(struct sockaddr)) == -1) {//
-        perror("Connect error().\n");
+       // perror("Connect error().\n");
         return Failure;
     }
     if (write (sd, &request,sizeof(RequestType)) <= 0)
     {
-        perror ("Write error().\n");
+       // perror ("Write error().\n");
         return Failure;
     }
     if (read (sd, &result,sizeof(Result)) <= 0)
     {
-        perror ("Read error().\n");
+       // perror ("Read error().\n");
         return Failure;
     }
     if(result == Failure)
         return Failure;
     return Success;
 }
-std::string getIp();
+in_addr_t getIp();
 #endif //HOST_NETWORK_H

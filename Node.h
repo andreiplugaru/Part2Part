@@ -7,20 +7,30 @@
 #include <string>
 #include <unistd.h>
 #include <netinet/in.h>
+#include <unordered_map>
 #include "Defines.h"
 class Node {
 public:
-    std::string name;
+   // std::string name;
     in_addr_t ip;
     in_port_t port;
     in_port_t portSuperNode;
     in_addr_t ipSuperNode;
+    bool shouldBeRedundantSuperNode;
     bool isSuperNode = false;
     bool isFirstNode = false;
-    virtual ~Node() {}
-    Result connectToSuperNode(in_addr_t Ip, in_port_t port);
+    std::unordered_map<in_addr_t, double>* scannedSuperNodes;
+    //virtual ~Node() = default;
     Result disconnectFromHost(in_addr_t Ip, in_port_t port);
-    void makeNewSuperNode();
+    NextSuperNodeResponse makeNewSuperNode();
+
+    Result requestInfoFromSuperNode(in_addr_t Ip, in_port_t port);
+
+    Result connectToSuperNode();
+
+    bool hasAvailableSuperNodes();
+    virtual void test(){};
+    Node();
 };
 
 

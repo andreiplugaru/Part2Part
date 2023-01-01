@@ -10,11 +10,13 @@
 #include <pthread.h>
 #include <vector>
 #include <cstring>
+#include <ifaddrs.h>
+typedef void * (*THREADFUNCPTR)(void *);
 
 #define CONNECT_CODE 2
 #define DISCONNECT_CODE 3
 
-#include "Network.h"
+#include "Network.cpp"
 #include "Node.cpp"
 #include "SuperNode.h"
 
@@ -25,7 +27,7 @@ extern int errno;
 Node hostNode;
 static void *treat(void *); /* functia executata de fiecare thread ce realizeaza comunicarea cu clientii */
 static void *showInterface(void * arg);
-pthread_t th[100];
+std::vector<pthread_t> th;
 int i = 0;
 Result acceptConnections() {
     int sd;
@@ -59,45 +61,95 @@ Result acceptConnections() {
             perror("[server]Eroare la accept().\n");
             continue;
         }
-        printf("Accepting...\n");
         td = (struct thData *) malloc(sizeof(struct thData));
         td->idThread = i++;
         td->cl = client;
         td->sockaddr = &from;
-        pthread_create(&th[i], NULL, &treat, td);
+        pthread_t new_thread;
+        pthread_create(&new_thread, NULL, &treat, td);
+        th.push_back(new_thread);
     }
 }
 int port;
 std::vector<Node*> connectedNodes;
 Node* currentNode;
+bool checkIsSuperNode()
+{
+    return dynamic_cast<SuperNode *>(currentNode) != nullptr && !((SuperNode*)(currentNode))->isRedundantSuperNode;
+}
+static void* pingFunction(void *)
+{
+    ((SuperNode*)currentNode)->ping();
+}
 int main (int argc, char *argv[]) {
-    // mesajul trimis
+    //
     int nr = 0;
     char buf[255];
     if (argc < 2) {
         printf("Sintaxa: %s <adresa_server> <port>\n", argv[0]);
         return -1;
     }
-    pthread_create(&th[i], NULL, &showInterface, NULL);
-    i++;
-
-    if (argc == 2) {
+    pthread_t new_thread;
+    pthread_create(&new_thread, NULL, &showInterface, NULL);
+    th.push_back(new_thread);
+    if (argc == 2)
+    {
         currentNode = new SuperNode();
         port = atoi(argv[1]);
         printf("Node connected to itself\n");
         currentNode->isFirstNode = true;
-        currentNode->ip = htonl (INADDR_ANY);
+        currentNode->ip = getIp();
+        currentNode->ipSuperNode = getIp();
         currentNode->port = htons(port);
+        ((SuperNode*)currentNode)->nextIpSuperNode = getIp();
+        ((SuperNode*)currentNode)->isRedundantSuperNode = false;
+        pthread_t new_thread;
+        pthread_create(&new_thread, NULL, &pingFunction, currentNode);
+        th.push_back(new_thread);
         acceptConnections();
-    } else {
+    } else
+    {
+        Result connectionResult;
         currentNode = new Node();
-        Result connectionResult = currentNode->connectToSuperNode(inet_addr(argv[1]),htons(atoi(argv[2])));
+        if(currentNode->requestInfoFromSuperNode(inet_addr(argv[1]),htons(atoi(argv[2]))) == Success) {
+            if (currentNode->hasAvailableSuperNodes()) {
+                connectionResult = currentNode->connectToSuperNode();
+                if (currentNode->shouldBeRedundantSuperNode) {
+                    currentNode = SuperNode::makeRedundantSuperNode(currentNode);
+                }
+            } else {
+                NextSuperNodeResponse response = currentNode->makeNewSuperNode();
+                if (response.result == Success) {
+                    currentNode = new SuperNode();
+                    ((SuperNode *) currentNode)->nextIpSuperNode = response.Nextip;
+                    ((SuperNode *) currentNode)->isRedundantSuperNode = false;
+                    currentNode->ipSuperNode = getIp();
+                    currentNode->ip = getIp();
+                    connectionResult = Success;
+                    pthread_t new_thread;
+                    pthread_create(&new_thread, NULL, &pingFunction, currentNode);
+                    th.push_back(new_thread);
+                    printf("This node is a super node!\n");
+                } else {
+                    connectionResult = Failure;
+                    perror("Error when trying to make this node a super node!\n");
+                }
+            }
+        }
+        else
+        {
+            perror("Connection failed!");
+        }
         if(connectionResult == Success)
         {
-            printf("Node connected to host\n");
+            acceptConnections();
+            printf("Node connected to super node\n");
         }
-        }
+        currentNode->scannedSuperNodes->clear();
     }
+
+
+}
 static void *treat(void * arg)
 {
     char utilizatorCurent[255];
@@ -106,23 +158,70 @@ static void *treat(void * arg)
     tdL= *((struct thData*)arg);
     fflush (stdout);
     RequestType request;
-    if (read (tdL.cl, &request,sizeof(Request)) <= 0)
+    if (read (tdL.cl, &request,sizeof(RequestType)) <= 0)
     {
         perror ("Eroare la read() de la client.\n");
     }
-    if(request == ConnectToSuperNode) {
-        if(currentNode->ipSuperNode == true)//current node is a super node
+    Result result;
+    result = Success;
+
+    if (write(tdL.cl, &result, sizeof(Result)) <= 0) {
+        perror("Eroare la write().\n");
+    }
+    if(request == GetNeighbourInfo)
+    {
+        if(checkIsSuperNode())//current node is a super node
         {
-            if(((SuperNode*)currentNode)->connectedNodes.size()< MAX_CLIENTS_PER_SUPERNODE)
-            {
-                ((SuperNode*)currentNode)->acceptNewNode(tdL.sockaddr->sin_addr.s_addr, tdL.sockaddr->sin_port, tdL.cl);
-            }
-            else
-            {
-                ((SuperNode*)currentNode)->rejectNewNode(tdL.sockaddr->sin_addr.s_addr, tdL.sockaddr->sin_port, tdL.cl);
+            NextSuperNodeResponse nextSuperNode;
+            nextSuperNode.Nextip = ((SuperNode*)currentNode)->nextIpSuperNode;
+            nextSuperNode.Nextport = ((SuperNode*)currentNode)->nextPortSuperNode;
+            nextSuperNode.isAlone = ((SuperNode*)currentNode)->isAlone;
+            nextSuperNode.available = ((SuperNode*)currentNode)->connectedNodes.size() < MAX_CLIENTS_PER_SUPERNODE;//should be modiifed
+            if (write(tdL.cl, &nextSuperNode, sizeof(NextSuperNodeResponse)) <= 0) {
+                perror("Eroare la write().\n");
             }
         }
-        else//current node is NOT a super node
+        else
+        {
+            NextSuperNodeResponse nextSuperNode;
+            nextSuperNode.Nextip = currentNode->ipSuperNode;
+            nextSuperNode.Nextport = currentNode->portSuperNode;
+            nextSuperNode.available = true;
+            if (write(tdL.cl, &nextSuperNode, sizeof(NextSuperNodeResponse)) <= 0) {
+                perror("Eroare la write().\n");
+            }
+        }
+    }
+    else if(request == ConnectToSuperNode) {
+        if(checkIsSuperNode())//current node is a super node
+        {
+            ((SuperNode*)currentNode)->acceptNewNode(tdL.sockaddr->sin_addr.s_addr, tdL.sockaddr->sin_port, tdL.cl);
+        }
+        }
+    else if(request == UpdateNextNodeNeighbour)
+    {
+        in_addr_t newNextIp;
+        if (read (tdL.cl, &newNextIp,sizeof(in_addr_t)) <= 0)
+        {
+            perror ("Eroare la read() de la client.\n");
+        }
+        printf("\nnew next in network order is: %d\n", newNextIp);
+        if (write (tdL.cl, &currentNode->ip,sizeof(in_addr_t)) <= 0)
+        {
+            perror ("Eroare la write() de la client.\n");
+        }
+        if(checkIsSuperNode())//current node is a super node
+            ((SuperNode*)currentNode)->nextIpSuperNode = newNextIp;
+        char ipStr[INET_ADDRSTRLEN];
+        inet_ntop(AF_INET, &newNextIp, ipStr, INET_ADDRSTRLEN);
+        printf("\nnew next ip is: %s\n", ipStr);
+    }
+
+    else if(request == ChooseAsRedunantSuperNode)
+    {
+        currentNode = SuperNode::makeRedundantSuperNode(currentNode);
+    }
+        /*else//current node is NOT a super node
         {
             int result = NotSuperNode;
             if (write(tdL.cl, &result, sizeof(int)) <= 0) {
@@ -134,33 +233,41 @@ static void *treat(void * arg)
             if (write(tdL.cl, &nextSuperNode, sizeof(Node)) <= 0) {
                 perror("Eroare la write().\n");
             }
-        }
-
-    }
-    else if(request == Disconnect)
-    {
+        }*/
+    else if(request == Disconnect) {
         printf("Disconnecting...\n");
-        for(int i = 0; i < connectedNodes.size(); i++)
-        {
-            if(connectedNodes[i]->ip == tdL.sockaddr->sin_addr.s_addr)
-            {
-                connectedNodes.erase(connectedNodes.begin() + i);
-                Request response;
-
-                if (write(tdL.cl, &response, sizeof(Request)) <= 0) {
-                    perror("Eroare la write().\n");
-                }
-                break;
-            }
-        }
+        ((SuperNode*)currentNode)->disconnect(tdL.sockaddr->sin_addr.s_addr);
     }
+    else if(request == GetConnectedNodes) {
+        ((SuperNode*)currentNode)->sendConnectedNodes(tdL.cl);
+        }
+    else if(request == SendNewNodeToRedundantSuperNode) {
+        Node node;
+        if (read(tdL.cl, &node, sizeof(Node)) <= 0) {
+            perror("Eroare la write().\n");
+        }
+        node.scannedSuperNodes->clear();
+        ((SuperNode*)currentNode)->connectedNodes.push_back(&node);
+    }
+    else if(request == RemoveNodeFromRedundantSuperNode) {
+       int nodeIndex;
+        if (read(tdL.cl, &nodeIndex, sizeof(int)) <= 0) {
+            perror("Eroare la write().\n");
+        }
+        if(nodeIndex > 0)
+            ((SuperNode*)currentNode)->connectedNodes.erase(((SuperNode*)currentNode)->connectedNodes.begin() + nodeIndex);
+    }
+    else if(request == Ping)
+    {
+        printf("ping request\n");
+    }
+    close ((intptr_t)arg);
+
     pthread_detach(pthread_self());
     //raspunde((struct thData*)arg);
     /* am terminat cu acest client, inchidem conexiunea */
    // printf("Connected node\n");
-    close ((intptr_t)arg);
     return(NULL);
-
 };
 static void *showInterface(void * arg)
 {
@@ -169,16 +276,19 @@ static void *showInterface(void * arg)
     printf("1 - Show connected peers to this node\n");
     printf("2 - Disconnect from host\n");
     printf("3 - Is super node\n");
+    printf("4 - Show the ip of its supernode\n");
+    printf("5 - Show the ip of the next supernode\n");
     printf("-1 Exit\n");
     scanf("%d", &c);
     while(c != -1)
     {
-        if(c == 1)
+        if(c == 1 && checkIsSuperNode())
         {
-            for(int i = 0; i < connectedNodes.size(); i++) {
+            printf("there are %d connected node\n",((SuperNode*)currentNode)->connectedNodes.size());
+            for(int i = 0; i < ((SuperNode*)currentNode)->connectedNodes.size(); i++) {
                 char str[INET_ADDRSTRLEN];
-                inet_ntop(AF_INET, &connectedNodes[i]->ip, str, INET_ADDRSTRLEN);
-                printf("%d: %s %s ", i, str, connectedNodes[i]->name.c_str());
+                inet_ntop(AF_INET, &((SuperNode*)currentNode)->connectedNodes[i]->ip, str, INET_ADDRSTRLEN);
+                //printf("%d: %s %s ", i, str, ((SuperNode*)currentNode)->connectedNodes[i]->name.c_str());
             }
         }
        else if(c == 2)
@@ -200,6 +310,17 @@ static void *showInterface(void * arg)
                 printf("This is a super node\n");
 
             }
+        }
+        else if(c == 4) {
+            char str[INET_ADDRSTRLEN];
+            inet_ntop(AF_INET, &currentNode->ipSuperNode, str, INET_ADDRSTRLEN);
+            printf("ip of its supernode: %s\n", str);
+        }
+        else if(c == 5) {
+            char str[INET_ADDRSTRLEN];
+            inet_ntop(AF_INET, &((SuperNode*)currentNode)->nextIpSuperNode, str, INET_ADDRSTRLEN);
+            printf("ip of the next supernode: %s\n", str);
+
         }
         scanf("%d", &c);
     }

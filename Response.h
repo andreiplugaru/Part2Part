@@ -11,9 +11,17 @@ public:
  int sd;
 };
 
-class NeighbourSuperNodeResponse : public Response{
+class NextSuperNodeResponse : public Response{
 public:
-    in_addr_t ip;
-    in_port_t port;
+    in_addr_t Nextip;
+    in_port_t Nextport;
+    bool isAlone;
+    double foundRatio;
+    bool available;
+};
+
+class AcceptSuperNodeResponse : public Response{
+public:
+   bool shouldBeRedundantSuperNode;
 };
 #endif //HOST_RESPONSE_H
