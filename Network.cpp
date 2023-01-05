@@ -41,14 +41,10 @@ in_addr_t getIp()
     serv.sin_family = AF_INET;
     serv.sin_addr.s_addr = inet_addr( google_dns_server );
     serv.sin_port = htons( dns_port );
-
     int err = connect( sock , (const struct sockaddr*) &serv , sizeof(serv) );
-
     struct sockaddr_in name;
     socklen_t namelen = sizeof(name);
     err = getsockname(sock, (struct sockaddr*) &name, &namelen);
-
-
     close(sock);
     return name.sin_addr.s_addr;
 }

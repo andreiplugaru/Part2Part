@@ -16,7 +16,7 @@ typedef struct thData{
 //enum Codes{ Connect, Disconnect, RequestFile};
 enum Result{ Success, Failure, NotSuperNode, Reject};
 enum RequestType{ GetPrevSuperNode,GetNextSuperNode, ConnectToSuperNode, UpdateNextNodeNeighbour, UpdatePrevNodeNeighbour, Disconnect,
-        GetNeighbourInfo, Ping, GetConnectedNodes, SendNewNodeToRedundantSuperNode, RemoveNodeFromRedundantSuperNode, ChooseAsRedunantSuperNode};
+        GetNeighbourInfo, Ping, GetConnectedNodes, SendNewNodeToRedundantSuperNode, RemoveNodeFromRedundantSuperNode, ChooseAsRedunantSuperNode, BecomeSuperNode};
 /*typedef struct Request{
     Codes code;
     Result result;

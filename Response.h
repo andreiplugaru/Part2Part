@@ -10,16 +10,15 @@ public:
  Result result;
  int sd;
 };
-
 class NextSuperNodeResponse : public Response{
 public:
     in_addr_t Nextip;
+    in_addr_t NextRedundantIp;
     in_port_t Nextport;
     bool isAlone;
     double foundRatio;
     bool available;
 };
-
 class AcceptSuperNodeResponse : public Response{
 public:
    bool shouldBeRedundantSuperNode;

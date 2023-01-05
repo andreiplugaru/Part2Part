@@ -9,8 +9,7 @@ class SuperNode : public Node {
 public:
     in_addr_t nextIpSuperNode;
     in_port_t nextPortSuperNode;
-/*    in_addr_t prevIpSuperNode;
-    in_port_t prevPortSuperNode;*/
+    in_addr_t ipOfNextRedundantSuperNode;
     std::vector<Node *> connectedNodes;
     bool isRedundantSuperNode;
     in_addr_t ipOfRedundantSuperNode;
@@ -106,14 +105,23 @@ SuperNode(){
     }
     void chooseAnotherRedundantSuperNode()
     {
-        if(connectedNodes.size() < 0)
+        ipOfRedundantSuperNode = 0;
+        if(connectedNodes.size() == 0)
             return;
             int sd;
-           Result result =  makeRequest(connectedNodes[0]->ip,htons(atoi("2908")),ChooseAsRedunantSuperNode, sd);
-           if(result == Success)
-           {
-            ipOfRedundantSuperNode = connectedNodes[0]->ip;
-           }
+        char ipStr[INET_ADDRSTRLEN];
+        Result result = Failure;
+        int i = 0;
+        while (result == Failure && i<connectedNodes.size()) {
+            inet_ntop(AF_INET, &connectedNodes[i]->ip, ipStr, INET_ADDRSTRLEN);
+            printf("ip of connectedNodes[1]->ip: %s\n", ipStr);
+            Result result = makeRequest(connectedNodes[i]->ip, htons(atoi("2908")), ChooseAsRedunantSuperNode, sd);
+            if (result == Success) {
+                ipOfRedundantSuperNode = connectedNodes[i]->ip;
+            }
+            i++;
+        }
+        printf("new redundant super node in chooseAnotherRedundantSuperNode is %d\n", ipOfRedundantSuperNode);
         close(sd);
     }
     static Node* makeRedundantSuperNode(Node* currentNode)
@@ -150,7 +158,10 @@ SuperNode(){
              //   printf("after   Result result1 = makeRequest(ipOfRedundantSuperNode\n");
                 if(result1 == Success)
                 {
-                    if (write(sd1, &(*connectedNodes[connectedNodes.size() - 1]).ip, sizeof(in_addr_t)) <= 0) {
+                   // connectedNodes[connectedNodes.size() - 1]->scannedSuperNodes->clear();
+                  //  connectedNodes[i]->scannedSuperNodes->clear();
+
+                    if (write(sd1, &*connectedNodes[connectedNodes.size() - 1], sizeof(Node)) <= 0) {
                         perror("Eroare la write().\n");
                     }
                 }
@@ -167,7 +178,6 @@ SuperNode(){
         close(sd);
         return Success;
     }
-
     Result rejectNewNode(in_addr_t ip, in_port_t port, int sd) {
         int result = Reject;
         if (write(sd, &result, sizeof(int)) <= 0) {
@@ -178,7 +188,7 @@ SuperNode(){
         }
         close(sd);
     }
- void sendConnectedNodes(int sd)
+    void sendConnectedNodes(int sd)
  {
     int numberNodes = connectedNodes.size();
      if (write(sd, &numberNodes, sizeof(int)) <= 0) {
@@ -187,13 +197,13 @@ SuperNode(){
      for(int i = 0; i < numberNodes; i++)
      {
          connectedNodes[i]->scannedSuperNodes->clear();
-         if (write(sd, &connectedNodes[i], sizeof(Node)) <= 0) {
+         if (write(sd, &*connectedNodes[i], sizeof(Node)) <= 0) {
              perror("Eroare la write().\n");
          }
+
      }
  }
-
-void* ping()
+    void* ping()
 {
     while (true)
     {
@@ -210,12 +220,45 @@ void* ping()
         for (int i = 0; i < disconnectedIps.size(); i++) {
             disconnect(disconnectedIps[i]);
         }
+        int sd;
+        Result checkSuperNode = makeRequest(nextIpSuperNode, htons(atoi("2908")), Ping, sd);
+        close(sd);
+        if (checkSuperNode == Failure) {
+            printf("Next supernode has disconnected!\n");
+            Result resultRedundant = makeRequest(ipOfNextRedundantSuperNode, htons(atoi("2908")), BecomeSuperNode, sd);
+            if(resultRedundant == Success)
+            {
+                nextIpSuperNode = ipOfNextRedundantSuperNode;
+                if (read(sd, &ipOfNextRedundantSuperNode, sizeof(in_addr_t)) <= 0) {
+                    perror("Eroare la write().\n");
+                }
+                printf("ipOfRedundantSuperNode = %d\n",ipOfRedundantSuperNode);
+                printf("nextIpSuperNode = %d\n",nextIpSuperNode);
+
+
+            }
+            close(sd);
+
+        }
+        if(ipOfRedundantSuperNode != 0) {
+            printf("ipOfRedundantSuperNode != 0\n");
+            Result checkRedundantNode = makeRequest(ipOfRedundantSuperNode, htons(atoi("2908")), Ping, sd);
+            close(sd);
+            if (checkRedundantNode == Failure) {
+                printf("checkRedundantNode == Failure\n");
+
+                chooseAnotherRedundantSuperNode();
+                close(sd);
+
+            }
+        }
         sleep(10);
     }
     return NULL;
 }
+
 /*This function is used if the current node is a redundant super node*/
-void getConnectedNodesFromSuperNode()
+    void getConnectedNodesFromSuperNode()
 {
     int sd;
     Result result = makeRequest(ipSuperNode, htons(atoi("2908")), RequestType::GetConnectedNodes, sd);
@@ -232,13 +275,28 @@ void getConnectedNodesFromSuperNode()
             if (read(sd, &currentNode, sizeof(Node)) <= 0) {
                 perror("Eroare la write().\n");
             }
+            char ipStr[INET_ADDRSTRLEN];
+            inet_ntop(AF_INET, &currentNode.ip, ipStr, INET_ADDRSTRLEN);
             currentNode.scannedSuperNodes = new std::unordered_map<in_addr_t, double>();
+            printf("ip[%d] = %s\n",i, ipStr);
+            if(getIp() != currentNode.ip)
             connectedNodes.push_back(&currentNode);
         }
     }
     close(sd);
 }
+void transformToNonRedundantSuperNode(int sd)
+{
+    printf("This node transformed to nonredunat supernode!\n");
 
+    isRedundantSuperNode = false;
+    chooseAnotherRedundantSuperNode();
+    if (write (sd, &ipOfRedundantSuperNode,sizeof(in_addr_t)) <= 0)
+    {
+        perror ("Eroare la write() de la client.\n");
+    }
+    close(sd);
+}
 /*esult rejectNewNodeNotSuper(in_addr_t ip, in_port_t port, int sd)
 {
     char *ipStr;

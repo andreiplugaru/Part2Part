@@ -23,12 +23,10 @@ public:
     //virtual ~Node() = default;
     Result disconnectFromHost(in_addr_t Ip, in_port_t port);
     NextSuperNodeResponse makeNewSuperNode();
-
     Result requestInfoFromSuperNode(in_addr_t Ip, in_port_t port);
-
     Result connectToSuperNode();
-
     bool hasAvailableSuperNodes();
+    void addFiles();
     virtual void test(){};
     Node();
 };
