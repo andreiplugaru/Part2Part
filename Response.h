@@ -23,4 +23,8 @@ class AcceptSuperNodeResponse : public Response{
 public:
    bool shouldBeRedundantSuperNode;
 };
+class FileRequestResponse{
+public:
+    bool shouldBeRedundantSuperNode;
+};
 #endif //HOST_RESPONSE_H

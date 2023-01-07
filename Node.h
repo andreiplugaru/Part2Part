@@ -9,9 +9,10 @@
 #include <netinet/in.h>
 #include <unordered_map>
 #include "Defines.h"
+#include "Response.h"
+#include "Request.h"
 class Node {
 public:
-   // std::string name;
     in_addr_t ip;
     in_port_t port;
     in_port_t portSuperNode;
@@ -20,15 +21,27 @@ public:
     bool isSuperNode = false;
     bool isFirstNode = false;
     std::unordered_map<in_addr_t, double>* scannedSuperNodes;
-    //virtual ~Node() = default;
     Result disconnectFromHost(in_addr_t Ip, in_port_t port);
     NextSuperNodeResponse makeNewSuperNode();
     Result requestInfoFromSuperNode(in_addr_t Ip, in_port_t port);
     Result connectToSuperNode();
     bool hasAvailableSuperNodes();
     void addFiles();
+    void initDB();
+    void insertFile(std::string fileName, std::string type, int size);
+    Result checkFileExists(FileRequest fileRequest);
+    Result sendFile(FileRequest fileRequest);
+    Result sendFileToRequestingSuperNode(FileRequest fileRequest);
+    void initiateFileTransferRequest(FileRequest fileRequest);
+   // void initiateFileTransferSend(FileRequest fileRequest);
+
     virtual void test(){};
     Node();
+
+    void searchFile();
+
+    void initiateFileTransferSend(int sd, FileRequest fileRequest);
+    void showSharedFiles();
 };
 
 

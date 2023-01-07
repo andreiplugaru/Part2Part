@@ -18,4 +18,12 @@ class ConnectToSuperNodeRequest: public Request{
 };
 class ChangeSuperNodeNeighbourRequest: public Request{
 };
+class FileRequest: public Request{
+public:
+    int id;
+    in_addr_t ipOfTheNodeRequesting;
+    in_addr_t ipOfTheSuperNodeRequesting;
+    in_addr_t ipOfTheNodeWithFile;
+    char fileName[255];
+    };
 #endif //HOST_REQUEST_H

@@ -98,10 +98,10 @@ int main (int argc, char *argv[]) {
         port = atoi(argv[1]);
         printf("Node connected to itself\n");
         currentNode->isFirstNode = true;
-        currentNode->ip = getIp();
-        currentNode->ipSuperNode = getIp();
+        currentNode->ip = Network::getIp();
+        currentNode->ipSuperNode = Network::getIp();
         currentNode->port = htons(port);
-        ((SuperNode*)currentNode)->nextIpSuperNode = getIp();
+        ((SuperNode*)currentNode)->nextIpSuperNode = Network::getIp();
         ((SuperNode*)currentNode)->isRedundantSuperNode = false;
         pthread_t new_thread;
         pthread_create(&new_thread, NULL, &pingFunction, currentNode);
@@ -123,10 +123,10 @@ int main (int argc, char *argv[]) {
                     currentNode = new SuperNode();
                     ((SuperNode *) currentNode)->nextIpSuperNode = response.Nextip;
                     ((SuperNode *) currentNode)->isRedundantSuperNode = false;
-                    currentNode->ipSuperNode = getIp();
+                    currentNode->ipSuperNode = Network::getIp();
                     ((SuperNode *) currentNode)->ipOfNextRedundantSuperNode = response.NextRedundantIp;
                     printf("received redundatn ip = %d", response.NextRedundantIp);
-                    currentNode->ip = getIp();
+                    currentNode->ip = Network::getIp();
                     connectionResult = Success;
                     pthread_t new_thread;
                     pthread_create(&new_thread, NULL, &pingFunction, currentNode);
@@ -164,7 +164,7 @@ static void *treat(void * arg)
     {
         perror ("Eroare la read() de la client.\n");
     }
-    printf("TEST\n");
+    //printf("TEST\n");
     Result result;
     result = Success;
 
@@ -273,15 +273,193 @@ static void *treat(void * arg)
     }
     else if(request == Ping)
     {
-        printf("ping request\n");
+       // printf("ping request\n");
     }
     else if(request == BecomeSuperNode)
     {
         ((SuperNode*)currentNode)->transformToNonRedundantSuperNode(tdL.cl);
-
     }
-        close ((intptr_t)arg);
+    else if(request == RequestFileFromConnectedNode) {
+     //   printf("    else if(request == RequestFileFromConnectedNode)\n");
+        FileRequest fileRequest;
+        if (read(tdL.cl, &fileRequest, sizeof(FileRequest)) <= 0) {
+            perror("Eroare la write().\n");
+        }
+        printf("requested file is %s\n", fileRequest.fileName);
+        fileRequest.ipOfTheSuperNodeRequesting = Network::getIp();
+        Result result1 = currentNode->checkFileExists(fileRequest);
+        if(result1 == Success) {
+            fileRequest.ipOfTheNodeWithFile = Network::getIp();
+            if (write(tdL.cl, &result1, sizeof(Result)) <= 0) {
+                perror("Eroare la write().\n");
+            }
+            if (write(tdL.cl, &fileRequest, sizeof(FileRequest)) <= 0) {
+                perror("Eroare la write().\n");
+            }
+        }
+       else {
+            bool found = false;
+            for (int i = 0; i < ((SuperNode *) currentNode)->connectedNodes.size(); i++) {
 
+                if (((SuperNode *) currentNode)->connectedNodes[i]->ip != fileRequest.ipOfTheNodeRequesting) {
+                    int sd2;
+                    Result resultRequestFile = Network::makeRequest(((SuperNode *) currentNode)->connectedNodes[i]->ip,
+                                                                    htons(atoi("2908")), RequestFileFromConnectedNode,
+                                                                    sd2);
+                    if (resultRequestFile == Success) {
+                        if (write(sd2, &fileRequest, sizeof(FileRequest)) <= 0) {
+                            perror("Eroare la write().\n");
+                        }
+                        Result result1;
+                        if (read(sd2, &result1, sizeof(Result)) <= 0) {
+                            perror("Eroare la write().\n");
+                        }
+                        if (read(sd2, &fileRequest, sizeof(FileRequest)) <= 0) {
+                            perror("Eroare la write().\n");
+                        }
+                        close(sd2);
+                        if (fileRequest.ipOfTheNodeWithFile != 0) {
+                            found = true;
+                            Result result1 = Success;
+                            if (write(tdL.cl, &result1, sizeof(Result)) <= 0) {
+                                perror("Eroare la write().\n");
+                            }
+                            if (write(tdL.cl, &fileRequest, sizeof(FileRequest)) <= 0) {
+                                perror("Eroare la write().\n");
+                            }
+                            break;
+                        }
+                    }
+                }
+            }
+            if (!found) {
+                printf("File was not found once\n");
+                Result result1 = SearchInOtherSuperNodes;
+                if (write(tdL.cl, &result1, sizeof(Result)) <= 0) {
+                    perror("Eroare la write().\n");
+                }
+                close(tdL.cl);
+                int sd2;
+                Result resultRequestFile = Network::makeRequest(((SuperNode *) currentNode)->nextIpSuperNode,
+                                                                htons(atoi("2908")), RequestFileFromSuperNode,
+                                                                sd2);
+                if (resultRequestFile == Success) {
+                    if (write(tdL.cl, &fileRequest, sizeof(FileRequest)) <= 0) {
+                        perror("Eroare la write().\n");
+                    }
+                }
+                close(sd2);
+            }
+        }
+    }
+    else if(request == RequestFileFromSuperNode)
+    {
+        FileRequest fileRequest;
+        if (read(tdL.cl, &fileRequest, sizeof(FileRequest)) <= 0) {
+            perror("Eroare la write().\n");
+        }
+
+        if(!((SuperNode *) currentNode)->hasRequest(fileRequest)) {
+            bool found = false;
+            for (int i = 0; i < ((SuperNode *) currentNode)->connectedNodes.size(); i++) {
+                if (((SuperNode *) currentNode)->connectedNodes[i]->ip != fileRequest.ipOfTheNodeRequesting) {
+                    int sd2;
+                    Result resultRequestFile = Network::makeRequest(((SuperNode *) currentNode)->connectedNodes[i]->ip,
+                                                                    htons(atoi("2908")), RequestFileFromConnectedNode,
+                                                                    sd2);
+                    if (resultRequestFile == Success) {
+                        if (write(sd2, &fileRequest, sizeof(FileRequest)) <= 0) {
+                            perror("Eroare la write().\n");
+                        }
+                        Result result1;
+                        if (read(sd2, &result1, sizeof(Result)) <= 0) {
+                            perror("Eroare la write().\n");
+                        }
+                        if (read(sd2, &fileRequest, sizeof(FileRequest)) <= 0) {
+                            perror("Eroare la write().\n");
+                        }
+                        close(sd2);
+                        if(result1 == Success)
+                        {
+                            found = true;
+                            fileRequest.ipOfTheNodeWithFile = ((SuperNode *) currentNode)->connectedNodes[i]->ip;
+                            currentNode->sendFileToRequestingSuperNode(fileRequest);
+                            break;
+                        }
+                    }
+                }
+            }
+            if(!found) {
+                ((SuperNode *) currentNode)->pendingRequests.push_back(fileRequest);
+/*
+                Result result1 = SearchInOtherSuperNodes;
+                    if (write(tdL.cl, &result1, sizeof(Result)) <= 0) {
+                        perror("Eroare la write().\n");
+                    }
+
+                    close(tdL.cl);*/
+
+                    int sd2;
+                    Result resultRequestFile = Network::makeRequest(((SuperNode *) currentNode)->nextIpSuperNode,
+                                                                    htons(atoi("2908")), RequestFileFromSuperNode,
+                                                                    sd2);
+                    if (resultRequestFile == Success) {
+                        if (write(sd2, &fileRequest, sizeof(FileRequest)) <= 0) {
+                            perror("Eroare la write().\n");
+                        }
+                    }
+                    close(sd2);
+            }
+        }
+        else
+        {
+            ((SuperNode*)currentNode)->notifySuperNodeFileNotFound(fileRequest);
+        }
+    }
+    else if(request == SendFileInfoToRequestingSuperNode)
+    {
+        FileRequest fileRequest;
+        if (read(tdL.cl, &fileRequest, sizeof(FileRequest)) <= 0) {
+            perror("Eroare la write().\n");
+        }
+        //printf("file with name: %s was found\n", fileRequest.fileName);
+        ((SuperNode*)currentNode)->notifyNodeFileFound(fileRequest);
+    }
+    else if(request == SuperNodeFileNotFound)
+    {
+        FileRequest fileRequest;
+        if (read(tdL.cl, &fileRequest, sizeof(FileRequest)) <= 0) {
+            perror("Eroare la write().\n");
+        }
+        ((SuperNode*)currentNode)->hasRequest(fileRequest);
+        ((SuperNode*)currentNode)->notifyNodeFileNotFound(fileRequest);
+    }
+    else if(request == NodeFileNotFound)
+    {
+        FileRequest fileRequest;
+        if (read(tdL.cl, &fileRequest, sizeof(FileRequest)) <= 0) {
+            perror("Eroare la write().\n");
+        }
+        printf("Unfortunately file: %s has not been found!\n", fileRequest.fileName);
+    }
+    else if(request == NodeFileFound)
+    {
+        FileRequest fileRequest;
+        if (read(tdL.cl, &fileRequest, sizeof(FileRequest)) <= 0) {
+            perror("Eroare la write().\n");
+        }
+        printf("The requested file has been found!\n");
+        currentNode->initiateFileTransferRequest(fileRequest);
+    }
+    else if(request == InitiateFileTransfer)
+    {
+        FileRequest fileRequest;
+        if (read(tdL.cl, &fileRequest, sizeof(FileRequest)) <= 0) {
+            perror("Eroare la write().\n");
+        }
+        currentNode->initiateFileTransferSend(tdL.cl, fileRequest);
+    }
+    close((intptr_t)arg);
     pthread_detach(pthread_self());
     //raspunde((struct thData*)arg);
     /* am terminat cu acest client, inchidem conexiunea */
@@ -297,6 +475,9 @@ static void *showInterface(void * arg)
     printf("3 - Is super node\n");
     printf("4 - Show the ip of its supernode\n");
     printf("5 - Show the ip of the next supernode\n");
+    printf("6 - Add a file to the network\n");
+    printf("7 - Search for the file\n");
+    printf("8 - Show available files\n");
     printf("-1 Exit\n");
     scanf("%d", &c);
     while(c != -1)
@@ -341,7 +522,18 @@ static void *showInterface(void * arg)
             printf("ip of the next supernode: %s\n", str);
 
         }
+        else if(c == 6) {
+            currentNode->addFiles();
+        }
+        else if(c == 7) {
+            currentNode->searchFile();
+        }
+        else if(c == 8) {
+            currentNode->showSharedFiles();
+        }
+
         scanf("%d", &c);
     }
     return(NULL);
 }
+

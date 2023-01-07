@@ -3,6 +3,9 @@
 
 #include <pthread.h>
 #include "Node.h"
+#include "Request.h"
+#include "Network.h"
+#include <vector>
 typedef void * (*THREADFUNCPTR)(void *);
 
 class SuperNode : public Node {
@@ -14,8 +17,15 @@ public:
     bool isRedundantSuperNode;
     in_addr_t ipOfRedundantSuperNode;
     bool isAlone;
+    std::vector<FileRequest> pendingRequests;
+    Result receiveRequestFromSuperNode(FileRequest fileRequest);
+    Result receiveRequestFromConnectedNode(FileRequest fileRequest);
+    Result checkForFileInConnectedNodes(FileRequest fileRequest);
+    Result checkForFileInNextSuperNode(FileRequest fileRequest);
+    bool hasRequest(FileRequest fileRequest);
+    void notifySuperNodeFileNotFound(FileRequest fileRequest);
 
-/*static SuperNode* getNextSuperNode(in_addr_t ip, in_port_t port)
+    /*static SuperNode* getNextSuperNode(in_addr_t ip, in_port_t port)
 {
     int sd;
     struct sockaddr_in server;
@@ -70,7 +80,7 @@ SuperNode(){
     void removeConnectedNodesFromSuperNode(int id)
     {
         int sd;
-        Result result = makeRequest(ipOfRedundantSuperNode, htons(atoi("2908")), RequestType::RemoveNodeFromRedundantSuperNode, sd);
+        Result result = Network::makeRequest(ipOfRedundantSuperNode, htons(atoi("2908")), RequestType::RemoveNodeFromRedundantSuperNode, sd);
         if(result == Success)
         {
             int numberNodes;
@@ -115,7 +125,7 @@ SuperNode(){
         while (result == Failure && i<connectedNodes.size()) {
             inet_ntop(AF_INET, &connectedNodes[i]->ip, ipStr, INET_ADDRSTRLEN);
             printf("ip of connectedNodes[1]->ip: %s\n", ipStr);
-            Result result = makeRequest(connectedNodes[i]->ip, htons(atoi("2908")), ChooseAsRedunantSuperNode, sd);
+            Result result = Network::makeRequest(connectedNodes[i]->ip, htons(atoi("2908")), ChooseAsRedunantSuperNode, sd);
             if (result == Success) {
                 ipOfRedundantSuperNode = connectedNodes[i]->ip;
             }
@@ -154,7 +164,7 @@ SuperNode(){
             if(this->ipOfRedundantSuperNode != 0)
             {
                 int sd1;
-                Result result1 = makeRequest(ipOfRedundantSuperNode, htons(atoi("2908")), RequestType::SendNewNodeToRedundantSuperNode, sd1);
+                Result result1 = Network::makeRequest(ipOfRedundantSuperNode, htons(atoi("2908")), RequestType::SendNewNodeToRedundantSuperNode, sd1);
              //   printf("after   Result result1 = makeRequest(ipOfRedundantSuperNode\n");
                 if(result1 == Success)
                 {
@@ -210,7 +220,7 @@ SuperNode(){
         std::vector<in_addr_t> disconnectedIps;
         for (int i = 0; i < connectedNodes.size(); i++) {
             int sd;
-            Result check = makeRequest(connectedNodes[i]->ip, htons(atoi("2908")), Ping, sd);
+            Result check = Network::makeRequest(connectedNodes[i]->ip, htons(atoi("2908")), Ping, sd);
             close(sd);
             if (check == Failure) {
                 printf("A node has disconnected!\n");
@@ -221,32 +231,33 @@ SuperNode(){
             disconnect(disconnectedIps[i]);
         }
         int sd;
-        Result checkSuperNode = makeRequest(nextIpSuperNode, htons(atoi("2908")), Ping, sd);
-        close(sd);
-        if (checkSuperNode == Failure) {
-            printf("Next supernode has disconnected!\n");
-            Result resultRedundant = makeRequest(ipOfNextRedundantSuperNode, htons(atoi("2908")), BecomeSuperNode, sd);
-            if(resultRedundant == Success)
-            {
-                nextIpSuperNode = ipOfNextRedundantSuperNode;
-                if (read(sd, &ipOfNextRedundantSuperNode, sizeof(in_addr_t)) <= 0) {
-                    perror("Eroare la write().\n");
-                }
-                printf("ipOfRedundantSuperNode = %d\n",ipOfRedundantSuperNode);
-                printf("nextIpSuperNode = %d\n",nextIpSuperNode);
 
+        if(nextIpSuperNode != Network::getIp()) {
+            Result checkSuperNode = Network::makeRequest(nextIpSuperNode, htons(atoi("2908")), Ping, sd);
+            close(sd);
+            if (checkSuperNode == Success) {
+                printf("Next supernode has disconnected!\n");
+                Result resultRedundant = Network::makeRequest(ipOfNextRedundantSuperNode, htons(atoi("2908")),
+                                                              BecomeSuperNode, sd);
+                if (resultRedundant == Success) {
+                    nextIpSuperNode = ipOfNextRedundantSuperNode;
+                    if (read(sd, &ipOfNextRedundantSuperNode, sizeof(in_addr_t)) <= 0) {
+                        perror("Eroare la write().\n");
+                    }
+                    printf("ipOfRedundantSuperNode = %d\n", ipOfRedundantSuperNode);
+                    printf("nextIpSuperNode = %d\n", nextIpSuperNode);
+
+
+                }
+                close(sd);
 
             }
-            close(sd);
-
         }
         if(ipOfRedundantSuperNode != 0) {
-            printf("ipOfRedundantSuperNode != 0\n");
-            Result checkRedundantNode = makeRequest(ipOfRedundantSuperNode, htons(atoi("2908")), Ping, sd);
+            Result checkRedundantNode = Network::makeRequest(ipOfRedundantSuperNode, htons(atoi("2908")), Ping, sd);
             close(sd);
             if (checkRedundantNode == Failure) {
-                printf("checkRedundantNode == Failure\n");
-
+               // printf("checkRedundantNode == Failure\n");
                 chooseAnotherRedundantSuperNode();
                 close(sd);
 
@@ -261,7 +272,7 @@ SuperNode(){
     void getConnectedNodesFromSuperNode()
 {
     int sd;
-    Result result = makeRequest(ipSuperNode, htons(atoi("2908")), RequestType::GetConnectedNodes, sd);
+    Result result = Network::makeRequest(ipSuperNode, htons(atoi("2908")), RequestType::GetConnectedNodes, sd);
     if(result == Success)
     {
         int numberNodes;
@@ -279,7 +290,7 @@ SuperNode(){
             inet_ntop(AF_INET, &currentNode.ip, ipStr, INET_ADDRSTRLEN);
             currentNode.scannedSuperNodes = new std::unordered_map<in_addr_t, double>();
             printf("ip[%d] = %s\n",i, ipStr);
-            if(getIp() != currentNode.ip)
+            if(Network::getIp() != currentNode.ip)
             connectedNodes.push_back(&currentNode);
         }
     }
@@ -314,6 +325,10 @@ void transformToNonRedundantSuperNode(int sd)
     close(sd);
 }
 */
-    };
+
+    void notifyNodeFileNotFound(FileRequest fileRequest);
+
+    void notifyNodeFileFound(FileRequest fileRequest);
+};
 
 #endif //HOST_SUPERNODE_H
