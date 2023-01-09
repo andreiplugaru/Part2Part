@@ -5,6 +5,8 @@
 #ifndef HOST_RESPONSE_H
 #define HOST_RESPONSE_H
 #include "Defines.h"
+#include <netinet/in.h>
+
 class Response {
 public:
  Result result;
@@ -16,7 +18,7 @@ public:
     in_addr_t NextRedundantIp;
     in_port_t Nextport;
     bool isAlone;
-    double foundRatio;
+    int foundRatio;
     bool available;
 };
 class AcceptSuperNodeResponse : public Response{

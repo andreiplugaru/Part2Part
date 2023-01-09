@@ -6,11 +6,14 @@
 #include "Request.h"
 #include "Network.h"
 #include <vector>
+#include <mutex>
+
 typedef void * (*THREADFUNCPTR)(void *);
 
 class SuperNode : public Node {
 public:
     in_addr_t nextIpSuperNode;
+    in_addr_t prevIpSuperNode;
     in_port_t nextPortSuperNode;
     in_addr_t ipOfNextRedundantSuperNode;
     std::vector<Node *> connectedNodes;
@@ -18,6 +21,8 @@ public:
     in_addr_t ipOfRedundantSuperNode;
     bool isAlone;
     std::vector<FileRequest> pendingRequests;
+    std::mutex pendingRequests_mutex;
+    std::mutex connectedNodes_mutex;
     Result receiveRequestFromSuperNode(FileRequest fileRequest);
     Result receiveRequestFromConnectedNode(FileRequest fileRequest);
     Result checkForFileInConnectedNodes(FileRequest fileRequest);
@@ -75,7 +80,7 @@ public:
     }
 }*/
 SuperNode(){
-
+        ipOfRedundantSuperNode = 0;
 }
     void removeConnectedNodesFromSuperNode(int id)
     {
@@ -95,10 +100,13 @@ SuperNode(){
 
     int disconnect(in_addr_t ip)
     {
+
         int id = -1;
         for (int i = 0; i < connectedNodes.size(); i++) {
             if (connectedNodes[i]->ip ==ip) {
+               std::lock_guard<std::mutex> lock(connectedNodes_mutex);
                 connectedNodes.erase(connectedNodes.begin() + i);
+             //   const std::lock_guard<std::mutex> unlock(connectedNodes_mutex);
 
                 if(ipOfRedundantSuperNode == ip) {
                     ipOfRedundantSuperNode = 0;
@@ -134,14 +142,19 @@ SuperNode(){
         printf("new redundant super node in chooseAnotherRedundantSuperNode is %d\n", ipOfRedundantSuperNode);
         close(sd);
     }
+
+    void getNextIp();
+
     static Node* makeRedundantSuperNode(Node* currentNode)
     {
-        printf("this is redundantnt\n");
         Node *newNode = new SuperNode();
         ((SuperNode *) newNode)->isRedundantSuperNode = true;
         newNode->ipSuperNode = currentNode->ipSuperNode;
         newNode->ip = currentNode->ip;
         ((SuperNode *) newNode)->getConnectedNodesFromSuperNode();
+        ((SuperNode *) newNode)->getNextIp();
+        ((SuperNode *) newNode)->getNextRedundantIp();
+
         return newNode;
     }
     Result acceptNewNode(in_addr_t ip, in_port_t port, int sd) {
@@ -149,7 +162,10 @@ SuperNode(){
             Node *newNode = new Node();
             newNode->ip = ip;
             newNode->port = port;
+            std::lock_guard<std::mutex> lock(connectedNodes_mutex);
             connectedNodes.push_back(newNode);
+            //const std::lock_guard<std::mutex> unlock(connectedNodes_mutex);
+
             char ipStr[INET_ADDRSTRLEN];
             inet_ntop(AF_INET, &ip, ipStr, INET_ADDRSTRLEN);
             int result = Success;
@@ -171,18 +187,18 @@ SuperNode(){
                    // connectedNodes[connectedNodes.size() - 1]->scannedSuperNodes->clear();
                   //  connectedNodes[i]->scannedSuperNodes->clear();
 
-                    if (write(sd1, &*connectedNodes[connectedNodes.size() - 1], sizeof(Node)) <= 0) {
-                        perror("Eroare la write().\n");
-                    }
+                    Network::send(sd1, *connectedNodes[connectedNodes.size() - 1]);
+
                 }
                 close(sd1);
             }
-            if(response.shouldBeRedundantSuperNode)
+            if(response.shouldBeRedundantSuperNode) {
                 this->ipOfRedundantSuperNode = ip;
+                this->updateNextRedundantIp(nextIpSuperNode,nextIpSuperNode, ipOfRedundantSuperNode);
 
-            if (write(sd, &response, sizeof(AcceptSuperNodeResponse)) <= 0) {
-                perror("Eroare la write().\n");
             }
+           Network::send(sd, response);
+
             printf("Node with ip %s connected!\n", ipStr);
         }
         close(sd);
@@ -207,9 +223,7 @@ SuperNode(){
      for(int i = 0; i < numberNodes; i++)
      {
          connectedNodes[i]->scannedSuperNodes->clear();
-         if (write(sd, &*connectedNodes[i], sizeof(Node)) <= 0) {
-             perror("Eroare la write().\n");
-         }
+         Network::send(sd, *connectedNodes[i]);
 
      }
  }
@@ -235,7 +249,7 @@ SuperNode(){
         if(nextIpSuperNode != Network::getIp()) {
             Result checkSuperNode = Network::makeRequest(nextIpSuperNode, htons(atoi("2908")), Ping, sd);
             close(sd);
-            if (checkSuperNode == Success) {
+            if (checkSuperNode == Failure) {
                 printf("Next supernode has disconnected!\n");
                 Result resultRedundant = Network::makeRequest(ipOfNextRedundantSuperNode, htons(atoi("2908")),
                                                               BecomeSuperNode, sd);
@@ -246,6 +260,8 @@ SuperNode(){
                     }
                     printf("ipOfRedundantSuperNode = %d\n", ipOfRedundantSuperNode);
                     printf("nextIpSuperNode = %d\n", nextIpSuperNode);
+                    updateNextIpToRedundant();
+                    updateNextRedundantIpToRedundant();
 
 
                 }
@@ -283,15 +299,18 @@ SuperNode(){
         for(int i = 0; i < numberNodes; i++)
         {
             Node currentNode;
-            if (read(sd, &currentNode, sizeof(Node)) <= 0) {
-                perror("Eroare la write().\n");
-            }
+            Network::receive(sd, currentNode);
             char ipStr[INET_ADDRSTRLEN];
             inet_ntop(AF_INET, &currentNode.ip, ipStr, INET_ADDRSTRLEN);
-            currentNode.scannedSuperNodes = new std::unordered_map<in_addr_t, double>();
-            printf("ip[%d] = %s\n",i, ipStr);
-            if(Network::getIp() != currentNode.ip)
-            connectedNodes.push_back(&currentNode);
+            currentNode.scannedSuperNodes = new std::unordered_map<in_addr_t, int>();
+
+            if(Network::getIp() != currentNode.ip) {
+               //std::lock_guard<std::mutex> lock(connectedNodes_mutex);
+
+                connectedNodes.push_back(&currentNode);
+                //const std::lock_guard<std::mutex> unlock(connectedNodes_mutex);
+
+            }
         }
     }
     close(sd);
@@ -329,6 +348,16 @@ void transformToNonRedundantSuperNode(int sd)
     void notifyNodeFileNotFound(FileRequest fileRequest);
 
     void notifyNodeFileFound(FileRequest fileRequest);
+
+    void updateNextSuperNodeToThisNode();
+
+    void getNextRedundantIp();
+
+    void updateNextRedundantIp(in_addr_t nextNodeIp, in_addr_t ipOfNode, in_addr_t ipofRedundantNode);
+
+    void updateNextIpToRedundant();
+
+    void updateNextRedundantIpToRedundant();
 };
 
 #endif //HOST_SUPERNODE_H

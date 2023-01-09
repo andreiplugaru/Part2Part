@@ -6,22 +6,6 @@
 #include <string.h>
 #include <arpa/inet.h>
 
-int check_host_name(int hostname) { //This function returns host name for local computer
-    if (hostname == -1) {
-        return -1;
-    }
-}
-int check_host_entry(struct hostent * hostentry) { //find host info from host name
-    if (hostentry == NULL){
-       return -1;
-    }
-}
-int IP_formatter(char *IPbuffer) { //convert IP string to dotted decimal format
-    if (NULL == IPbuffer) {
-        perror("inet_ntoa");
-        exit(1);
-    }
-}
 in_addr_t Network::getIp()
 {
     /*struct addrinfo hints = {0}, *addrs;

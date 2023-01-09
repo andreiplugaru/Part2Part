@@ -39,8 +39,8 @@ public:
         return Success;
     }
     static in_addr_t getIp();
-};
-void sendFileRequest(int sd, FileRequest fileRequest)
+
+static void send(int sd, FileRequest fileRequest)
 {
     if (write(sd, &fileRequest.id, sizeof(int)) <= 0) {
         perror("Eroare la write().\n");
@@ -58,9 +58,8 @@ void sendFileRequest(int sd, FileRequest fileRequest)
         perror("Eroare la write().\n");
     }
 };
-FileRequest readFileRequest(int sd)
+    static void receive(int sd,FileRequest& fileRequest)
 {
-    FileRequest fileRequest;
     if (read(sd, &fileRequest.id, sizeof(int)) <= 0) {
         perror("Eroare la read().\n");
     }
@@ -76,17 +75,12 @@ FileRequest readFileRequest(int sd)
     if (read(sd, &fileRequest.fileName, sizeof(fileRequest.fileName) * sizeof(char)) <= 0) {
         perror("Eroare la read().\n");
     }
-    return fileRequest;
 };
-
-void sendNode(int sd, Node node) {
+    static void send(int sd, Node node) {
     if (write(sd, &node.ip, sizeof(in_addr_t)) <= 0) {
         perror("Eroare la write().\n");
     }
     if (write(sd, &node.port, sizeof(in_port_t)) <= 0) {
-        perror("Eroare la write().\n");
-    }
-    if (write(sd, &node.portSuperNode, sizeof(in_port_t)) <= 0) {
         perror("Eroare la write().\n");
     }
     if (write(sd, &node.portSuperNode, sizeof(in_port_t)) <= 0) {
@@ -105,15 +99,11 @@ void sendNode(int sd, Node node) {
         perror("Eroare la write().\n");
     }
 };
-Node readNode(int sd) {
-    Node node;
+    static void receive(int sd,  Node& node) {
     if (read(sd, &node.ip, sizeof(in_addr_t)) <= 0) {
         perror("Eroare la write().\n");
     }
     if (read(sd, &node.port, sizeof(in_port_t)) <= 0) {
-        perror("Eroare la write().\n");
-    }
-    if (read(sd, &node.portSuperNode, sizeof(in_port_t)) <= 0) {
         perror("Eroare la write().\n");
     }
     if (read(sd, &node.portSuperNode, sizeof(in_port_t)) <= 0) {
@@ -131,9 +121,8 @@ Node readNode(int sd) {
     if (read(sd, &node.isFirstNode, sizeof(bool)) <= 0) {
         perror("Eroare la write().\n");
     }
-    return node;
 };
-void sendAcceptSuperNodeResponse(int sd, AcceptSuperNodeResponse acceptSuperNodeResponse)
+    static void send(int sd, AcceptSuperNodeResponse acceptSuperNodeResponse)
 {
     if (write(sd, &acceptSuperNodeResponse.sd, sizeof(int)) <= 0) {
         perror("Eroare la write().\n");
@@ -145,9 +134,8 @@ void sendAcceptSuperNodeResponse(int sd, AcceptSuperNodeResponse acceptSuperNode
         perror("Eroare la write().\n");
     }
 }
-AcceptSuperNodeResponse readAcceptSuperNodeResponse(int sd)
+    static void receive(int sd,  AcceptSuperNodeResponse& acceptSuperNodeResponse)
 {
-    AcceptSuperNodeResponse acceptSuperNodeResponse;
     if (read(sd, &acceptSuperNodeResponse.sd, sizeof(int)) <= 0) {
         perror("Eroare la write().\n");
     }
@@ -157,6 +145,48 @@ AcceptSuperNodeResponse readAcceptSuperNodeResponse(int sd)
     if (read(sd, &acceptSuperNodeResponse.shouldBeRedundantSuperNode, sizeof(bool)) <= 0) {
         perror("Eroare la write().\n");
     }
-    return acceptSuperNodeResponse;
 }
+    static void send(int sd, NextSuperNodeResponse nextSuperNodeResponse)
+{
+    if (write(sd, &nextSuperNodeResponse.Nextip, sizeof(in_addr_t)) <= 0) {
+        perror("Eroare la write().\n");
+    }
+    if (write(sd, &nextSuperNodeResponse.NextRedundantIp, sizeof(in_addr_t)) <= 0) {
+        perror("Eroare la write().\n");
+    }
+    if (write(sd, &nextSuperNodeResponse.Nextport, sizeof(in_port_t)) <= 0) {
+        perror("Eroare la write().\n");
+    }
+    if (write(sd, &nextSuperNodeResponse.isAlone, sizeof(bool)) <= 0) {
+        perror("Eroare la write().\n");
+    }
+    if (write(sd, &nextSuperNodeResponse.foundRatio, sizeof(int)) <= 0) {
+        perror("Eroare la write().\n");
+    }
+    if (write(sd, &nextSuperNodeResponse.available, sizeof(bool)) <= 0) {
+        perror("Eroare la write().\n");
+    }
+}
+    static void receive(int sd, NextSuperNodeResponse& nextSuperNodeResponse)
+{
+    if (read(sd, &nextSuperNodeResponse.Nextip, sizeof(in_addr_t)) <= 0) {
+        perror("Eroare la write().\n");
+    }
+    if (read(sd, &nextSuperNodeResponse.NextRedundantIp, sizeof(in_addr_t)) <= 0) {
+        perror("Eroare la write().\n");
+    }
+    if (read(sd, &nextSuperNodeResponse.Nextport, sizeof(in_port_t)) <= 0) {
+        perror("Eroare la write().\n");
+    }
+    if (read(sd, &nextSuperNodeResponse.isAlone, sizeof(bool)) <= 0) {
+        perror("Eroare la write().\n");
+    }
+    if (read(sd, &nextSuperNodeResponse.foundRatio, sizeof(int)) <= 0) {
+        perror("Eroare la write().\n");
+    }
+    if (read(sd, &nextSuperNodeResponse.available, sizeof(bool)) <= 0) {
+        perror("Eroare la write().\n");
+    }
+}
+};
 #endif //HOST_NETWORK_H

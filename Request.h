@@ -4,6 +4,7 @@
 
 #ifndef HOST_REQUEST_H
 #define HOST_REQUEST_H
+#include <netinet/in.h>
 
 class Request {
 
