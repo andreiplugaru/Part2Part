@@ -51,7 +51,7 @@ Result acceptConnections() {
         perror("[server]Eroare la listen().\n");
         return Failure;
     }
-  //  printf("[server]Asteptam la portul %d...\n", PORT);
+    //  printf("[server]Asteptam la portul %d...\n", PORT);
     while (1) {
         int client;
         thData *td; //parametru functia executata de thread
@@ -93,12 +93,12 @@ int main (int argc, char *argv[]) {
     pthread_create(&new_thread, NULL, &showInterface, NULL);
     th.push_back(new_thread);
     currentNode->initDB();
- //   printf("current ip: %d", Network::getIp());
+    //   printf("current ip: %d", Network::getIp());
     if (argc == 2)
     {
         currentNode = new SuperNode();
         port = atoi(argv[1]);
-      //  printf("Node connected to itself\n");
+        //  printf("Node connected to itself\n");
         currentNode->isFirstNode = true;
         currentNode->ip = Network::getIp();
         currentNode->ipSuperNode = Network::getIp();
@@ -123,7 +123,7 @@ int main (int argc, char *argv[]) {
             if (currentNode->hasAvailableSuperNodes()) {
                 connectionResult = currentNode->connectToSuperNode();
                 if (currentNode->shouldBeRedundantSuperNode) {
-                    currentNode = SuperNode::makeRedundantSuperNode(currentNode);
+                    currentNode = SuperNode::makeRedundantSuperNode(currentNode, Network::getIp());
                 }
             } else {
                 NextSuperNodeResponse response = currentNode->makeNewSuperNode();
@@ -196,9 +196,9 @@ static void *treat(void * arg)
             nextSuperNode.isAlone = ((SuperNode*)currentNode)->isAlone;
             nextSuperNode.NextRedundantIp = ((SuperNode*)currentNode)->ipOfRedundantSuperNode;
             nextSuperNode.foundRatio = 1;//TODO
-         //   printf("nextSuperNode.NextRedundantIp = %d",nextSuperNode.NextRedundantIp);
+            //   printf("nextSuperNode.NextRedundantIp = %d",nextSuperNode.NextRedundantIp);
             nextSuperNode.available = ((SuperNode*)currentNode)->connectedNodes.size() < MAX_CLIENTS_PER_SUPERNODE;//should be modiifed
-          //  printf("\nis available %d\n",nextSuperNode.available);
+            //  printf("\nis available %d\n",nextSuperNode.available);
             Network::send(tdL.cl, nextSuperNode);
         }
         else
@@ -217,7 +217,7 @@ static void *treat(void * arg)
         }
         else
             printf("A node tried to connect, but this isn't a supernode\n");
-        }
+    }
     else if(request == UpdateNextNodeNeighbour)
     {
         in_addr_t newNextIp;
@@ -225,7 +225,7 @@ static void *treat(void * arg)
         {
             perror ("Eroare la read() de la client.\n");
         }
-      //  printf("\nnew next in network order is: %d\n", newNextIp);
+        //  printf("\nnew next in network order is: %d\n", newNextIp);
         NextSuperNodeResponse response;
         response.Nextip = ((SuperNode*)currentNode)->nextIpSuperNode;
         response.NextRedundantIp = ((SuperNode*)currentNode)->ipOfRedundantSuperNode;
@@ -242,7 +242,7 @@ static void *treat(void * arg)
     else if(request == ChooseAsRedunantSuperNode)
     {
         printf("\nThis node has been chosen as supernode!\n");
-        currentNode = SuperNode::makeRedundantSuperNode(currentNode);
+        currentNode = SuperNode::makeRedundantSuperNode(currentNode,Network::getIp());
     }
         /*else//current node is NOT a super node
         {
@@ -263,7 +263,7 @@ static void *treat(void * arg)
     }
     else if(request == GetConnectedNodes) {
         ((SuperNode*)currentNode)->sendConnectedNodes(tdL.cl);
-        }
+    }
     else if(request == SendNewNodeToRedundantSuperNode) {
         Node node;
         Network::receive(tdL.cl, node);
@@ -277,7 +277,7 @@ static void *treat(void * arg)
         inet_ntop(AF_INET, & ((SuperNode*)currentNode)->connectedNodes[ ((SuperNode*)currentNode)->connectedNodes.size() - 1]->ip, ipStr, INET_ADDRSTRLEN);
     }
     else if(request == RemoveNodeFromRedundantSuperNode) {
-       int nodeIndex;
+        int nodeIndex;
         if (read(tdL.cl, &nodeIndex, sizeof(int)) <= 0) {
             perror("Eroare la write().\n");
         }
@@ -289,7 +289,7 @@ static void *treat(void * arg)
         } }
     else if(request == Ping)
     {
-       // printf("ping request\n");
+        // printf("ping request\n");
     }
     else if(request == BecomeSuperNode)
     {
@@ -299,8 +299,6 @@ static void *treat(void * arg)
     {
         FileRequest fileRequest;
         Network::receive(tdL.cl, fileRequest);
-        printf("requested file is2 %s\n", fileRequest.fileName);
-        //  fileRequest.ipOfTheSuperNodeRequesting = Network::getIp();
         Result result1 = currentNode->checkFileExists(fileRequest);
         if (write(tdL.cl, &result1, sizeof(Result)) <= 0) {
             perror("Eroare la write().\n");
@@ -312,17 +310,16 @@ static void *treat(void * arg)
         Network::send(tdL.cl, fileRequest);
     }
     else if(request == RequestFileFromConnectedNode) {
-     //   printf("    else if(request == RequestFileFromConnectedNode)\n");
+       //   printf("    else if(request == RequestFileFromConnectedNode)\n");
         FileRequest fileRequest;
         Network::receive(tdL.cl, fileRequest);
-        printf("requested file is %s\n", fileRequest.fileName);
         fileRequest.ipOfTheSuperNodeRequesting = Network::getIp();
         Result result1 = currentNode->checkFileExists(fileRequest);
         if(result1 == Success) {
             fileRequest.ipOfTheNodeWithFile = Network::getIp();
             currentNode->sendFileToRequestingSuperNode(fileRequest);
         }
-       else {
+        else {
             bool found = false;
             for (int i = 0; i < ((SuperNode *) currentNode)->connectedNodes.size(); i++) {
 
@@ -411,7 +408,7 @@ static void *treat(void * arg)
                 }
 
                 if (!found) {
-                   std::lock_guard<std::mutex> lock( ((SuperNode *) currentNode)->pendingRequests_mutex);
+                    std::lock_guard<std::mutex> lock( ((SuperNode *) currentNode)->pendingRequests_mutex);
                     ((SuperNode *) currentNode)->pendingRequests.push_back(fileRequest);
 
 /*
@@ -419,7 +416,6 @@ static void *treat(void * arg)
                     if (write(tdL.cl, &result1, sizeof(Result)) <= 0) {
                         perror("Eroare la write().\n");
                     }
-
                     close(tdL.cl);*/
 
                     int sd2;
@@ -432,7 +428,7 @@ static void *treat(void * arg)
                     close(sd2);
                 }
             }
-            }
+        }
 
         else
         {
@@ -527,7 +523,7 @@ static void *treat(void * arg)
     pthread_detach(pthread_self());
     //raspunde((struct thData*)arg);
     /* am terminat cu acest client, inchidem conexiunea */
-   // printf("Connected node\n");
+    // printf("Connected node\n");
     return(NULL);
 };
 static void *showInterface(void * arg)
@@ -545,7 +541,7 @@ static void *showInterface(void * arg)
     printf("-1 Exit\n");*/
     std::cout<<"Available commands"<<std::endl;
     std::cout<<"add <filename>"<<std::endl;
-    std::cout<<"search <filename>"<<std::endl;
+    std::cout<<"search <filename> [condition for size: size >/</= n]"<<std::endl;
     std::cout<<"shared"<<std::endl;
     std::cout<<"show_debug_info"<<std::endl;
 
@@ -557,13 +553,48 @@ static void *showInterface(void * arg)
     while(c != -1)
     {
         std::cout<<"Write command:"<<std::endl;
-
         std::getline(std::cin,command);
+        Operators op = Nothing;
+
         if(strstr(command.c_str(), "search")!=NULL)
         {
-            printf("searching...\n");
-            std::string fileName = command.substr(command.find(' ') + 1);
-            currentNode->searchFile(fileName);
+                std::string sizeCommand = command.substr(command.find(" ") + 1);
+                char* commandChr = strdup(sizeCommand.c_str());
+                char* token = strtok(commandChr, " ");
+                std::string fileName;
+                int i = 0;
+                int n = 0;
+                while( token != NULL ) {
+                if(i == 0)
+                {
+                    fileName = token;
+                }
+              else  if(i == 1 && !strcmp(token, "size"))
+                {
+                break;
+                }
+                else if(i == 2 && (strcmp(token, ">") || strcmp(token, "<") || strcmp(token, "<=") || strcmp(token, ">=") || strcmp(token, "==")))
+                {
+                  if(strcmp(token, ">") == 0)
+                    op = Greater;
+                  else if(strcmp(token, ">=") == 0)
+                      op = GreaterEqual;
+                  else if(strcmp(token, "==") == 0)
+                      op = Equal;
+                  else if(strcmp(token, "<") == 0)
+                      op = Less;
+                  else if(strcmp(token, "<=") == 0)
+                      op = LessEqual;
+                }
+                else if(i == 3)
+                {
+                    n = std::stoi(token);
+                }
+                i++;
+                token = strtok(NULL, " ");
+            }
+            currentNode->searchFile(fileName, op, n);
+
         }
         else if (strstr(command.c_str(), "add")!=NULL)
         {

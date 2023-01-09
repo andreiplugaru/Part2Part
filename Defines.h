@@ -19,7 +19,7 @@ enum RequestType{ GetPrevSuperNode,GetNextSuperNode, ConnectToSuperNode, UpdateN
         GetNeighbourInfo, Ping, GetConnectedNodes, SendNewNodeToRedundantSuperNode, RemoveNodeFromRedundantSuperNode, ChooseAsRedunantSuperNode,
         BecomeSuperNode, RequestFileFromConnectedNode, RequestFileFromSuperNode, SendFileInfoToRequestingSuperNode, SuperNodeFileNotFound, NodeFileNotFound,
         NodeFileFound, InitiateFileTransfer,CheckFileExists, GetNextRedundantSuperNode, UpdateNextRedundant,UpdateNextNodeNeighbourInRedundant, UpdateNextIpToRedundant,UpdateNextRedundantIpToRedundant};
-
+enum Operators{ Less, LessEqual, Greater, GreaterEqual, Equal, Nothing };
 /*typedef struct Request{
     Codes code;
     Result result;

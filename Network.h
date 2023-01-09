@@ -6,6 +6,7 @@
 #include <netdb.h>
 #include <arpa/inet.h>
 #include <string>
+#include <cstring>
 #include "Response.h"
 #include "Request.h"
 #include "Node.h"
@@ -20,7 +21,7 @@ public:
             return Failure;
         }
         server.sin_family = AF_INET;
-        server.sin_addr.s_addr = ip;
+        server.sin_addr.s_addr =  ip;
         server.sin_port = port;
         if (connect(sd, (struct sockaddr *) &server, sizeof(struct sockaddr)) == -1) {//
             // perror("Connect error().\n");
@@ -54,15 +55,24 @@ static void send(int sd, FileRequest fileRequest)
     if (write(sd, &fileRequest.ipOfTheNodeWithFile, sizeof(in_addr_t)) <= 0) {
         perror("Eroare la write().\n");
     }
+
     if (write(sd, &fileRequest.fileName, sizeof(fileRequest.fileName) * sizeof(char)) <= 0) {
         perror("Eroare la write().\n");
     }
+    if (write(sd, &fileRequest.reqOperator, sizeof(Operators))<= 0) {
+
+        perror("Eroare la write().\n");
+    }
+    if (write(sd, &fileRequest.n, sizeof(int))<= 0) {
+        perror("Eroare la write().\n");
+    }
 };
-    static void receive(int sd,FileRequest& fileRequest)
+static void receive(int sd,FileRequest& fileRequest)
 {
     if (read(sd, &fileRequest.id, sizeof(int)) <= 0) {
         perror("Eroare la read().\n");
     }
+    fileRequest.ipOfTheNodeRequesting = 0;
     if (read(sd, &fileRequest.ipOfTheNodeRequesting, sizeof(in_addr_t)) <= 0) {
         perror("Eroare la read().\n");
     }
@@ -72,11 +82,20 @@ static void send(int sd, FileRequest fileRequest)
     if (read(sd, &fileRequest.ipOfTheNodeWithFile, sizeof(in_addr_t)) <= 0) {
         perror("Eroare la read().\n");
     }
-    if (read(sd, &fileRequest.fileName, sizeof(fileRequest.fileName) * sizeof(char)) <= 0) {
+    int readSoFar = 0;
+    char buffer[255];
+    while(readSoFar < sizeof(fileRequest.fileName) * sizeof(char) && (readSoFar += read(sd, &buffer, sizeof(fileRequest.fileName) * sizeof(char))) > 0)
+    {
+        strcpy(fileRequest.fileName, buffer);
+    }
+    if (read(sd, &fileRequest.reqOperator, sizeof(Operators)) <= 0) {
         perror("Eroare la read().\n");
     }
+    if (read(sd, &fileRequest.n, sizeof(int)) <= 0) {
+        perror("Eroare la write().\n");
+    }
 };
-    static void send(int sd, Node node) {
+static void send(int sd, Node node) {
     if (write(sd, &node.ip, sizeof(in_addr_t)) <= 0) {
         perror("Eroare la write().\n");
     }
@@ -99,7 +118,7 @@ static void send(int sd, FileRequest fileRequest)
         perror("Eroare la write().\n");
     }
 };
-    static void receive(int sd,  Node& node) {
+static void receive(int sd,  Node& node) {
     if (read(sd, &node.ip, sizeof(in_addr_t)) <= 0) {
         perror("Eroare la write().\n");
     }
@@ -122,7 +141,7 @@ static void send(int sd, FileRequest fileRequest)
         perror("Eroare la write().\n");
     }
 };
-    static void send(int sd, AcceptSuperNodeResponse acceptSuperNodeResponse)
+static void send(int sd, AcceptSuperNodeResponse acceptSuperNodeResponse)
 {
     if (write(sd, &acceptSuperNodeResponse.sd, sizeof(int)) <= 0) {
         perror("Eroare la write().\n");
@@ -134,7 +153,7 @@ static void send(int sd, FileRequest fileRequest)
         perror("Eroare la write().\n");
     }
 }
-    static void receive(int sd,  AcceptSuperNodeResponse& acceptSuperNodeResponse)
+static void receive(int sd,  AcceptSuperNodeResponse& acceptSuperNodeResponse)
 {
     if (read(sd, &acceptSuperNodeResponse.sd, sizeof(int)) <= 0) {
         perror("Eroare la write().\n");
@@ -146,7 +165,7 @@ static void send(int sd, FileRequest fileRequest)
         perror("Eroare la write().\n");
     }
 }
-    static void send(int sd, NextSuperNodeResponse nextSuperNodeResponse)
+static void send(int sd, NextSuperNodeResponse nextSuperNodeResponse)
 {
     if (write(sd, &nextSuperNodeResponse.Nextip, sizeof(in_addr_t)) <= 0) {
         perror("Eroare la write().\n");
@@ -167,7 +186,7 @@ static void send(int sd, FileRequest fileRequest)
         perror("Eroare la write().\n");
     }
 }
-    static void receive(int sd, NextSuperNodeResponse& nextSuperNodeResponse)
+static void receive(int sd, NextSuperNodeResponse& nextSuperNodeResponse)
 {
     if (read(sd, &nextSuperNodeResponse.Nextip, sizeof(in_addr_t)) <= 0) {
         perror("Eroare la write().\n");

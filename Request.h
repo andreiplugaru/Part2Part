@@ -25,6 +25,8 @@ public:
     in_addr_t ipOfTheNodeRequesting;
     in_addr_t ipOfTheSuperNodeRequesting;
     in_addr_t ipOfTheNodeWithFile;
+    Operators reqOperator;
+    int n;
     char fileName[255];
     };
 #endif //HOST_REQUEST_H

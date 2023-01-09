@@ -23,6 +23,7 @@ public:
     std::vector<FileRequest> pendingRequests;
     std::mutex pendingRequests_mutex;
     std::mutex connectedNodes_mutex;
+    int filesFound = 0;
     Result receiveRequestFromSuperNode(FileRequest fileRequest);
     Result receiveRequestFromConnectedNode(FileRequest fileRequest);
     Result checkForFileInConnectedNodes(FileRequest fileRequest);
@@ -103,12 +104,12 @@ SuperNode(){
 
         int id = -1;
         for (int i = 0; i < connectedNodes.size(); i++) {
-            if (connectedNodes[i]->ip ==ip) {
+            if (connectedNodes[i]->ip == getIp()) {
                std::lock_guard<std::mutex> lock(connectedNodes_mutex);
                 connectedNodes.erase(connectedNodes.begin() + i);
              //   const std::lock_guard<std::mutex> unlock(connectedNodes_mutex);
 
-                if(ipOfRedundantSuperNode == ip) {
+                if(ipOfRedundantSuperNode == getIp()) {
                     ipOfRedundantSuperNode = 0;
                 }
                 id = i;
@@ -124,13 +125,16 @@ SuperNode(){
     void chooseAnotherRedundantSuperNode()
     {
         ipOfRedundantSuperNode = 0;
-        if(connectedNodes.size() == 0)
+        if(connectedNodes.size() == 0) {
+            printf("There aren't any other connected nodes\n");
             return;
+        }
             int sd;
         char ipStr[INET_ADDRSTRLEN];
         Result result = Failure;
         int i = 0;
         while (result == Failure && i<connectedNodes.size()) {
+
             inet_ntop(AF_INET, &connectedNodes[i]->ip, ipStr, INET_ADDRSTRLEN);
             printf("ip of connectedNodes[1]->ip: %s\n", ipStr);
             Result result = Network::makeRequest(connectedNodes[i]->ip, htons(atoi("2908")), ChooseAsRedunantSuperNode, sd);
@@ -145,12 +149,12 @@ SuperNode(){
 
     void getNextIp();
 
-    static Node* makeRedundantSuperNode(Node* currentNode)
+    static Node* makeRedundantSuperNode(Node* currentNode, in_addr_t ip)
     {
         Node *newNode = new SuperNode();
         ((SuperNode *) newNode)->isRedundantSuperNode = true;
         newNode->ipSuperNode = currentNode->ipSuperNode;
-        newNode->ip = currentNode->ip;
+        newNode->ip = Network::getIp();
         ((SuperNode *) newNode)->getConnectedNodesFromSuperNode();
         ((SuperNode *) newNode)->getNextIp();
         ((SuperNode *) newNode)->getNextRedundantIp();
@@ -198,8 +202,6 @@ SuperNode(){
 
             }
            Network::send(sd, response);
-
-            printf("Node with ip %s connected!\n", ipStr);
         }
         close(sd);
         return Success;
@@ -246,7 +248,7 @@ SuperNode(){
         }
         int sd;
 
-        if(nextIpSuperNode != Network::getIp()) {
+        if(nextIpSuperNode != getIp()) {
             Result checkSuperNode = Network::makeRequest(nextIpSuperNode, htons(atoi("2908")), Ping, sd);
             close(sd);
             if (checkSuperNode == Failure) {
@@ -303,14 +305,7 @@ SuperNode(){
             char ipStr[INET_ADDRSTRLEN];
             inet_ntop(AF_INET, &currentNode.ip, ipStr, INET_ADDRSTRLEN);
             currentNode.scannedSuperNodes = new std::unordered_map<in_addr_t, int>();
-
-            if(Network::getIp() != currentNode.ip) {
-               //std::lock_guard<std::mutex> lock(connectedNodes_mutex);
-
-                connectedNodes.push_back(&currentNode);
-                //const std::lock_guard<std::mutex> unlock(connectedNodes_mutex);
-
-            }
+            connectedNodes.push_back(&currentNode);
         }
     }
     close(sd);
@@ -320,30 +315,15 @@ void transformToNonRedundantSuperNode(int sd)
     printf("This node transformed to nonredunat supernode!\n");
 
     isRedundantSuperNode = false;
+    connectedNodes.erase(connectedNodes.begin());
     chooseAnotherRedundantSuperNode();
+
     if (write (sd, &ipOfRedundantSuperNode,sizeof(in_addr_t)) <= 0)
     {
         perror ("Eroare la write() de la client.\n");
     }
     close(sd);
 }
-/*esult rejectNewNodeNotSuper(in_addr_t ip, in_port_t port, int sd)
-{
-    char *ipStr;
-    inet_ntop(AF_INET, (void *)ip, ipStr, INET_ADDRSTRLEN);
-    if (write(sd, &result, sizeof(int)) <= 0) {
-        perror("Eroare la write().\n");
-    }
-    if()
-    Node nextSuperNode;
-    nextSuperNode.ip = this->nextIpSuperNode;
-    nextSuperNode.port = this->nextPortSuperNode;
-    if (write(sd, &nextSuperNode, sizeof(Node)) <= 0) {
-        perror("Eroare la write().\n");
-    }
-    close(sd);
-}
-*/
 
     void notifyNodeFileNotFound(FileRequest fileRequest);
 
@@ -358,6 +338,10 @@ void transformToNonRedundantSuperNode(int sd)
     void updateNextIpToRedundant();
 
     void updateNextRedundantIpToRedundant();
+
+    void receiveRequestFromConnectedNode(int sd);
+
+    void receiveRequestFromSuperNode(int sd);
 };
 
 #endif //HOST_SUPERNODE_H

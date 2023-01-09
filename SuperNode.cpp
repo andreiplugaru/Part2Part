@@ -4,7 +4,7 @@
 
 Result SuperNode::receiveRequestFromConnectedNode(FileRequest fileRequest) {
 
-    }
+}
 
 Result SuperNode::receiveRequestFromSuperNode(FileRequest fileRequest) {
 
