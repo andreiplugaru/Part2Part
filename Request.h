@@ -5,7 +5,7 @@
 #ifndef HOST_REQUEST_H
 #define HOST_REQUEST_H
 #include <netinet/in.h>
-
+#include "Defines.h"
 class Request {
 
 };
@@ -25,7 +25,7 @@ public:
     in_addr_t ipOfTheNodeRequesting;
     in_addr_t ipOfTheSuperNodeRequesting;
     in_addr_t ipOfTheNodeWithFile;
-    Operators reqOperator;
+    enum Operators reqOperator;
     int n;
     char fileName[255];
     };

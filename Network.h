@@ -55,7 +55,6 @@ static void send(int sd, FileRequest fileRequest)
     if (write(sd, &fileRequest.ipOfTheNodeWithFile, sizeof(in_addr_t)) <= 0) {
         perror("Eroare la write().\n");
     }
-
     if (write(sd, &fileRequest.fileName, sizeof(fileRequest.fileName) * sizeof(char)) <= 0) {
         perror("Eroare la write().\n");
     }
@@ -92,7 +91,7 @@ static void receive(int sd,FileRequest& fileRequest)
         perror("Eroare la read().\n");
     }
     if (read(sd, &fileRequest.n, sizeof(int)) <= 0) {
-        perror("Eroare la write().\n");
+        perror("Eroare la read().\n");
     }
 };
 static void send(int sd, Node node) {

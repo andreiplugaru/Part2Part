@@ -43,10 +43,9 @@ public:
 
     Result sendFile(FileRequest fileRequest);
 
-    Result sendFileToRequestingSuperNode(FileRequest fileRequest);
+    void sendFileToRequestingSuperNode(FileRequest fileRequest);
 
     void initiateFileTransferRequest(FileRequest fileRequest);
-    // void initiateFileTransferSend(FileRequest fileRequest);
 
     virtual void test() {};
 
