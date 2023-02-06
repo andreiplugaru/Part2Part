@@ -1,0 +1,1 @@
+  A peer to peer file sharing application. The architecture of the peer to peer network used in the application is with super nodes. It was chosen in order to reduce the complexity of finding files, and in the same time keeping a low number of connected nodes to a single one, and also reducing the risk of a single point of failure. 
