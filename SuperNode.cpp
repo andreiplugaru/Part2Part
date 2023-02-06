@@ -348,6 +348,7 @@ void* SuperNode::ping()
         int sd;
 
         if(nextIpSuperNode != getIp()) {
+
             Result checkSuperNode = Network::makeRequest(nextIpSuperNode, htons(atoi("2908")), Ping, sd);
             close(sd);
             if (checkSuperNode == Failure) {
@@ -360,8 +361,6 @@ void* SuperNode::ping()
                     }
                     updateNextIpToRedundant();
                     updateNextRedundantIpToRedundant();
-
-
                 }
                 close(sd);
 

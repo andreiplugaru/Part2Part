@@ -1,0 +1,7 @@
+cmake_minimum_required(VERSION 3.23)
+project(Server)
+set(CMAKE_CXX_STANDARD 14)
+add_executable(Server server.cpp Node.h Network.h SuperNode.cpp Network.cpp Node.cpp)
+include_directories(/usr/include)
+link_directories(/usr/lib)
+target_link_libraries(Server sqlite3)

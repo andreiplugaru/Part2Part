@@ -61,6 +61,7 @@ Result acceptConnections() {
             perror("[server]Eroare la accept().\n");
             continue;
         }
+        printf("[debug] node trying to connect\n");
         td = (struct thData *) malloc(sizeof(struct thData));
         td->idThread = i++;
         td->cl = client;
@@ -84,6 +85,7 @@ static void* pingFunction(void *)
 }
 int main (int argc, char *argv[]) {
     //
+    Network::getIp();
     int nr = 0;
     char buf[255];
     if (argc < 1) {
@@ -104,6 +106,7 @@ int main (int argc, char *argv[]) {
         currentNode->port = htons(port);
         ((SuperNode*)currentNode)->nextIpSuperNode = Network::getIp();
         ((SuperNode*)currentNode)->isRedundantSuperNode = false;
+        ((SuperNode*)currentNode)->ipOfRedundantSuperNode = 0;
         pthread_t new_thread;
         pthread_create(&new_thread, NULL, &pingFunction, currentNode);
         th.push_back(new_thread);
@@ -115,6 +118,7 @@ int main (int argc, char *argv[]) {
         if(currentNode->requestInfoFromSuperNode(inet_addr(argv[1]),htons(PORT)) == Success) {
             if (currentNode->hasAvailableSuperNodes()) {
                 connectionResult = currentNode->connectToSuperNode();
+                printf("\nconnectionResult =\n");
                 if (currentNode->shouldBeRedundantSuperNode) {
                     currentNode = SuperNode::makeRedundantSuperNode(currentNode, Network::getIp());
                 }
@@ -124,7 +128,6 @@ int main (int argc, char *argv[]) {
                     currentNode = new SuperNode();
                     ((SuperNode *) currentNode)->nextIpSuperNode = response.Nextip;
                     ((SuperNode *) currentNode)->isRedundantSuperNode = false;
-
                     currentNode->ipSuperNode = Network::getIp();
                     ((SuperNode *) currentNode)->ipOfNextRedundantSuperNode = response.NextRedundantIp;
                     currentNode->ip = Network::getIp();
@@ -142,12 +145,13 @@ int main (int argc, char *argv[]) {
         {
             perror("Connection failed!");
         }
+        currentNode->scannedSuperNodes->clear();
+
         if(connectionResult == Success)
         {
-            acceptConnections();
             printf("Node connected to super node\n");
+            acceptConnections();
         }
-        currentNode->scannedSuperNodes->clear();
     }
 
 
@@ -179,7 +183,7 @@ static void *treat(void * arg)
             nextSuperNode.isAlone = ((SuperNode*)currentNode)->isAlone;
             nextSuperNode.NextRedundantIp = ((SuperNode*)currentNode)->ipOfRedundantSuperNode;
             nextSuperNode.foundRatio = ((SuperNode*)currentNode)->filesFound;
-            nextSuperNode.available = ((SuperNode*)currentNode)->connectedNodes.size() < MAX_CLIENTS_PER_SUPERNODE;//should be modiifed
+            nextSuperNode.available = ((SuperNode*)currentNode)->connectedNodes.size() < MAX_CLIENTS_PER_SUPERNODE;
             Network::send(tdL.cl, nextSuperNode);
         }
         else
@@ -451,9 +455,29 @@ static void *showInterface(void * arg)
             printf("[debug]Is redundant node: %d\n", ((SuperNode*)currentNode ) ->isRedundantSuperNode);
             else
                 printf("[debug]Is redundant node: %d\n",0);
-
-
         }
+        else if (strstr(command.c_str(), "super")!=NULL)
+        {
+            char str[INET_ADDRSTRLEN];
+            inet_ntop(AF_INET, &currentNode->ipSuperNode, str, INET_ADDRSTRLEN);
+            printf("ip of the supernode: %s\n", str);
+        }
+        else if (strstr(command.c_str(), "redundant")!=NULL)
+        {
+            char str[INET_ADDRSTRLEN];
+            inet_ntop(AF_INET, &((SuperNode*)currentNode)->ipOfRedundantSuperNode, str, INET_ADDRSTRLEN);
+            printf("ip of the redundant supernode: %s\n", str);
+        }
+        else if (strstr(command.c_str(), "connected")!=NULL)
+        {
+            printf("There are %d connected nodes\n", ((SuperNode*)currentNode)->connectedNodes.size());
+            for(int i = 0; i < ((SuperNode*)currentNode)->connectedNodes.size(); i++) {
+                char str[INET_ADDRSTRLEN];
+                inet_ntop(AF_INET, &((SuperNode*)currentNode)->connectedNodes[i]->ip, str, INET_ADDRSTRLEN);
+                printf("%d : %s\n",i, str);
+            }
+        }
+
     }
     return(NULL);
 }
